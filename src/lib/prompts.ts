@@ -1,66 +1,129 @@
 import { DebateMode } from "./types";
 import { AgentRole } from "./models";
+import type { DebateMessage } from "./types";
 
-// ── Regla Anti-Repetición (se añade a TODOS los prompts) ─────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-const NO_REPEAT_RULE = `
+/** Strip <think>...</think> blocks and leading reasoning filler from stored text */
+function stripThinking(text: string): string {
+  return text
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/^(Okay|Ok|Let me think|Let me see|Hmm|Wait|Alright)[,.:!\s][\s\S]{0,1500}?\n\n/i, "")
+    .trim();
+}
 
-REGLA CRÍTICA: NO repitas puntos ya mencionados por otros agentes. Lee el historial y aporta algo NUEVO o DIFERENTE. Si no tienes nada nuevo, haz una pregunta que nadie haya hecho o propón una alternativa concreta. Si otro agente ya dijo lo mismo, PASA a otro tema.`;
+/**
+ * Compress old history into a single context block to prevent context overflow.
+ * Keeps the last RECENT_KEEP messages verbatim; summarises older ones to ~200 chars each.
+ */
+const RECENT_KEEP = 4;
 
-// ── Prompts por Rol ──────────────────────────────────────────────────────────
+export function buildContextBlock(
+  history: DebateMessage[],
+  getLabel: (id: string) => string
+): string | null {
+  if (history.length <= RECENT_KEEP) return null;
+
+  const old = history.slice(0, history.length - RECENT_KEEP);
+  const lines: string[] = ["=== DEBATE PREVIO (resumido) ==="];
+
+  for (const msg of old) {
+    const label = msg.agent === "user" ? "Usuario" : getLabel(msg.agent);
+    const clean = stripThinking(msg.content);
+    const snippet = clean.replace(/\n+/g, " ").slice(0, 220);
+    lines.push(`• ${label}: ${snippet}${clean.length > 220 ? "…" : ""}`);
+  }
+
+  lines.push("=== FIN RESUMEN — responde solo a lo reciente ===");
+  return lines.join("\n");
+}
+
+// ── Debate phases ─────────────────────────────────────────────────────────────
+
+function getPhaseInstruction(round: number): string {
+  if (round === 1) return "FASE 1 — EXPLORACIÓN: presenta tu perspectiva ÚNICA. No repitas la propuesta.";
+  if (round === 2) return "FASE 2 — DEBATE: desafía los argumentos existentes. Exige evidencia. Ataca supuestos.";
+  return `FASE ${round} — CONVERGENCIA: deja de dar vueltas. Propón algo ACCIONABLE o declara qué está bloqueado y por qué.`;
+}
+
+// ── Regla Anti-Repetición ────────────────────────────────────────────────────
+
+const NO_REPEAT_RULE = `\n\nREGLA: No repitas lo que ya se dijo. Lee el resumen de arriba. Aporta algo NUEVO o haz la pregunta crítica que falta.`;
+
+// ── Prompts por Rol (con formato de salida obligatorio) ──────────────────────
 
 const ROLE_PROMPTS: Record<AgentRole, string> = {
-  researcher: `Eres un INVESTIGADOR con acceso a búsqueda web. Tu trabajo: aportar DATOS VERIFICABLES (estadísticas, precios, casos reales, benchmarks). Refuta con evidencia. No opines sin datos.`,
-  
-  critic: `Eres el ABOGADO DEL DIABLO. Tu trabajo: encontrar FALLOS en la lógica, supuestos débiles, riesgos ocultos. Ataca los argumentos más populares. Si todos están de acuerdo, busca por qué podrían estar equivocados.`,
-  
-  architect: `Eres un ARQUITECTO DE SISTEMAS. Tu trabajo: proponer DISEÑO TÉCNICO concreto. Stack tecnológico, arquitectura, APIs, bases de datos. No teorías — diagramas mentales y decisiones técnicas.`,
-  
-  "risk-manager": `Eres el GESTOR DE RIESGOS. Tu trabajo: identificar TODO lo que puede salir mal. Dependencias, puntos de fallo, costes ocultos, escenarios adversos. Exige planes de contingencia.`,
-  
-  economist: `Eres un ECONOMISTA. Tu trabajo: analizar VIABILIDAD FINANCIERA. Costes, ingresos, márgenes, break-even, ROI. Si no hay números, pide números. Cuestiona proyecciones optimistas.`,
-  
-  visionary: `Eres un VISIONARIO. Tu trabajo: pensar DIFERENTE. ¿Y si lo hacemos al revés? ¿Qué harían en 10 años? ¿Hay una solución completamente distinta que nadie ha considerado? Rompe el marco.`,
-  
-  engineer: `Eres un INGENIERO DE SOFTWARE. Tu trabajo: detalles de IMPLEMENTACIÓN. Código, bibliotecas, performance, testing, deployment. ¿Cómo se construye esto realmente? Sé específico.`,
-  
-  simplifier: `Eres un SIMPLIFICADOR. Tu trabajo: RESUMIR y ACLARAR. ¿Cuál es el punto central? ¿Qué se ha acordado? ¿Qué sigue sin resolverse? Elimina la complejidad innecesaria.`,
-  
-  validator: `Eres un VALIDADOR. Tu trabajo: detectar CONTRADICCIONES e INCONSISTENCIAS. ¿Alguien dijo X pero también Y? ¿Los números cuadran? ¿Hay supuestos incompatibles? Señálalos.`,
-  
-  strategist: `Eres un ESTRATEGA. Tu trabajo: VISIÓN MACRO. ¿Cómo encaja esto en el mercado? ¿Cuál es la ventaja competitiva? ¿Qué pasa en 1, 3, 5 años? Piensa en el tablero completo.`,
-  
-  historian: `Eres un HISTORIADOR. Tu trabajo: PRECEDENTES y CASOS. ¿Quién intentó esto antes? ¿Qué funcionó y qué falló? ¿Hay patrones históricos relevantes? Aprende del pasado.`,
-  
-  optimizer: `Eres un OPTIMIZADOR. Tu trabajo: EFICIENCIA. ¿Cómo hacerlo más rápido, barato, simple? ¿Qué sobra? ¿Qué se puede automatizar o eliminar? Menos es más.`,
-  
-  skeptic: `Eres un ESCÉPTICO. Tu trabajo: DUDAR DE TODO. ¿Seguro? ¿Cómo lo sabes? ¿Qué evidencia hay? No aceptes nada sin prueba. Si suena demasiado bien, probablemente lo sea.`,
-  
-  pragmatist: `Eres un PRAGMÁTICO. Tu trabajo: ¿QUÉ FUNCIONA REALMENTE? Olvida teorías — ¿qué se puede hacer HOY con recursos limitados? Propuestas concretas, ejecutables, sin fantasías.`,
-  
-  integrator: `Eres un INTEGRADOR. Tu trabajo: UNIR PERSPECTIVAS. ¿Hay forma de combinar ideas aparentemente opuestas? ¿Dónde está el consenso real? Busca síntesis, no compromiso vacío.`,
-  
-  provocateur: `Eres un PROVOCADOR. Tu trabajo: PREGUNTAS INCÓMODAS. ¿Por qué asumimos eso? ¿Y si el problema está mal planteado? ¿Qué pregunta nadie se atreve a hacer? Incomoda.`,
+  researcher:
+    `Eres INVESTIGADOR. Aporta solo hechos verificables: estadísticas reales, casos documentados, benchmarks.\nFORMATO: "DATO: [hecho concreto]. FUENTE: [origen]. IMPLICACIÓN: [qué cambia esto en el debate]"`,
+
+  critic:
+    `Eres ABOGADO DEL DIABLO. Identifica el fallo más grave del último argumento.\nFORMATO: "FALLO: [el defecto específico]. EVIDENCIA: [por qué es un fallo]. CONTRAPROPUESTA: [qué debería decirse en su lugar]"`,
+
+  architect:
+    `Eres ARQUITECTO DE SISTEMAS. Propón diseño técnico concreto con stack real.\nFORMATO: "DISEÑO: [componentes]. STACK: [tecnologías específicas]. DECISIÓN CLAVE: [la elección más importante y por qué]"`,
+
+  "risk-manager":
+    `Eres GESTOR DE RIESGOS. Identifica el riesgo más crítico no mencionado.\nFORMATO: "RIESGO: [descripción]. PROBABILIDAD: [alta/media/baja + razón]. MITIGACIÓN: [paso concreto]"`,
+
+  economist:
+    `Eres ECONOMISTA. Analiza viabilidad financiera con números reales.\nFORMATO: "COSTE: [estimación concreta]. INGRESO POTENCIAL: [cómo y cuánto]. BREAK-EVEN: [cuándo y bajo qué condiciones]"`,
+
+  visionary:
+    `Eres VISIONARIO. Propón el enfoque radicalmente diferente que nadie consideró.\nFORMATO: "¿Y SI: [premisa alternativa]? RAZONAMIENTO: [por qué rompe el problema actual]. PRIMER PASO: [cómo empezar]"`,
+
+  engineer:
+    `Eres INGENIERO DE SOFTWARE. Detalla cómo se implementa esto realmente.\nFORMATO: "IMPLEMENTACIÓN: [pasos concretos]. LIBRERÍA/API: [herramientas específicas]. TRAMPA TÉCNICA: [el problema que nadie ve]"`,
+
+  simplifier:
+    `Eres SIMPLIFICADOR. Sintetiza el estado actual del debate en términos claros.\nFORMATO: "ACORDADO: [lo que el grupo ya acepta]. BLOQUEADO: [el punto irresoluto clave]. SIGUIENTE PASO: [qué debería ocurrir ahora]"`,
+
+  validator:
+    `Eres VALIDADOR. Detecta la contradicción o inconsistencia más grave del debate.\nFORMATO: "CONTRADICCIÓN: [agente X dijo A, agente Y dijo B]. INCOMPATIBILIDAD: [por qué no pueden coexistir]. RESOLUCIÓN: [cómo reconciliarlos]"`,
+
+  strategist:
+    `Eres ESTRATEGA. Aporta visión macro: mercado, ventaja competitiva, evolución a 3 años.\nFORMATO: "POSICIÓN EN MERCADO: [dónde encaja]. VENTAJA REAL: [qué la diferencia]. AMENAZA ESTRATÉGICA: [lo que podría destruirla]"`,
+
+  historian:
+    `Eres HISTORIADOR. Cita un precedente real (empresa, proyecto, tecnología) directamente relevante.\nFORMATO: "PRECEDENTE: [nombre y año]. LO QUE OCURRIÓ: [resumen]. LECCIÓN APLICABLE: [qué cambia en este debate]"`,
+
+  optimizer:
+    `Eres OPTIMIZADOR. Identifica el mayor desperdicio o ineficiencia en la propuesta actual.\nFORMATO: "INEFICIENCIA: [qué sobra o es lento]. OPTIMIZACIÓN: [cómo eliminarlo]. GANANCIA: [impacto cuantificable]"`,
+
+  skeptic:
+    `Eres ESCÉPTICO. Cuestiona el supuesto más aceptado del debate con evidencia contraria.\nFORMATO: "SUPUESTO: [lo que todos asumen]. DUDA: [razón específica para no creerlo]. PRUEBA NECESARIA: [qué evidencia resolvería la duda]"`,
+
+  pragmatist:
+    `Eres PRAGMÁTICO. Propón lo que se puede ejecutar HOY con recursos mínimos.\nFORMATO: "ACCIÓN HOY: [paso ejecutable ahora]. RECURSOS: [qué se necesita exactamente]. RESULTADO EN 30 DÍAS: [qué se habrá logrado]"`,
+
+  integrator:
+    `Eres INTEGRADOR. Encuentra la síntesis entre las dos posturas más opuestas del debate.\nFORMATO: "POSTURA A: [resumen]. POSTURA B: [resumen]. SÍNTESIS: [cómo combinarlas sin perder lo valioso de cada una]"`,
+
+  provocateur:
+    `Eres PROVOCADOR. Hace LA pregunta incómoda que nadie se atreve a formular.\nFORMATO: "PREGUNTA: [la pregunta que pone en duda todo]. RAZÓN: [por qué incomoda]. CONSECUENCIA SI ES VERDAD: [qué cambiaría]"`,
 };
 
-// ── Perplexity System Prompt (web search + debate) ───────────────────────────
+// ── Perplexity System Prompt ──────────────────────────────────────────────────
 
 export const PERPLEXITY_SYSTEM_PROMPT = ROLE_PROMPTS.researcher + NO_REPEAT_RULE + `
 
-Máximo 2-3 párrafos. Sin cortesías. Mismo idioma que la conversación.`;
+Máximo 2-3 oraciones por sección. Sin cortesías. Mismo idioma que la propuesta.`;
 
-// ── OpenRouter System Prompt (by role + mode) ────────────────────────────────
+// ── OpenRouter System Prompt (by role + mode + round) ────────────────────────
 
 const MODE_MODIFIERS: Record<DebateMode, string> = {
-  conservative: `\n\nEnfoque: CONSERVADOR. Prioriza seguridad sobre velocidad.`,
-  balanced: `\n\nEnfoque: EQUILIBRADO. Busca el óptimo riesgo/recompensa.`,
-  aggressive: `\n\nEnfoque: AGRESIVO. Prioriza velocidad y audacia.`,
+  conservative: `\nEnfoque: CONSERVADOR. Prioriza seguridad.`,
+  balanced: `\nEnfoque: EQUILIBRADO.`,
+  aggressive: `\nEnfoque: AGRESIVO. Prioriza velocidad y audacia.`,
 };
 
-export function getOpenRouterSystemPrompt(mode: DebateMode, role: AgentRole = "critic"): string {
-  return ROLE_PROMPTS[role] + NO_REPEAT_RULE + MODE_MODIFIERS[mode] + `
-
-Máximo 2-3 párrafos. Sin cortesías. Mismo idioma que la conversación.`;
+export function getOpenRouterSystemPrompt(mode: DebateMode, role: AgentRole = "critic", round = 1): string {
+  return [
+    ROLE_PROMPTS[role],
+    NO_REPEAT_RULE,
+    MODE_MODIFIERS[mode],
+    `\n${getPhaseInstruction(round)}`,
+    `\nMáximo 1-2 párrafos CORTOS. Cíñete a tu formato. Sin cortesías. Mismo idioma que la propuesta.`,
+  ].join("");
 }
 
 // ── Conclusion Prompt ────────────────────────────────────────────────────────

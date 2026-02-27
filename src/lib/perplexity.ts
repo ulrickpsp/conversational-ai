@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { config } from "./config";
 import { DebateMessage } from "./types";
-import { PERPLEXITY_SYSTEM_PROMPT } from "./prompts";
+import { PERPLEXITY_SYSTEM_PROMPT, buildContextBlock } from "./prompts";
 import { getCollaboratorLabel } from "./models";
 
 // ── Perplexity Direct Client (OpenAI-compatible API) ──────────────────────────
@@ -19,8 +19,8 @@ function getClient(): OpenAI {
 }
 
 // ── Message Builder (sequential debate) ───────────────────────────────────────
-// Full conversation as alternating user/assistant. This agent's own messages
-// are "assistant", everything else (user proposal + other agents) are "user".
+// Old messages compressed to summary; only last 4 passed verbatim.
+const RECENT_KEEP = 4;
 
 function buildMessages(
   history: DebateMessage[]
@@ -29,13 +29,19 @@ function buildMessages(
     { role: "system", content: PERPLEXITY_SYSTEM_PROMPT },
   ];
 
+  // Inject compressed summary for older messages
+  const contextBlock = buildContextBlock(history, getCollaboratorLabel);
+  if (contextBlock) {
+    messages.push({ role: "user", content: contextBlock });
+    messages.push({ role: "assistant", content: "Entendido. He revisado el debate previo." });
+  }
+
+  const recent = history.slice(-RECENT_KEEP);
   let lastRole: "user" | "assistant" | null = null;
 
-  for (const msg of history) {
+  for (const msg of recent) {
     if (msg.agent === "user") {
-      // User proposal
       if (lastRole === "user") {
-        // Merge into previous user message
         messages[messages.length - 1] = {
           role: "user",
           content: (messages[messages.length - 1] as { content: string }).content + "\n\n" + msg.content,
@@ -45,11 +51,9 @@ function buildMessages(
         lastRole = "user";
       }
     } else if (msg.agent === "perplexity") {
-      // My own response → assistant
       messages.push({ role: "assistant", content: msg.content });
       lastRole = "assistant";
     } else {
-      // Another agent's response → user (labeled)
       const label = getCollaboratorLabel(msg.agent);
       const text = `[${label}]: ${msg.content}`;
       if (lastRole === "user") {

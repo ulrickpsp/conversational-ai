@@ -101,7 +101,8 @@ export async function* orchestrateDebate(
                 collab.id,
                 collab.id,
                 mode,
-                config.debate.maxTokensOpenRouter
+                config.debate.maxTokensOpenRouter,
+                round
               );
 
         for await (const chunk of gen) {

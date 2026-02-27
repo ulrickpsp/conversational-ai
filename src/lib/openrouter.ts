@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { config } from "./config";
 import { DebateMessage, DebateMode } from "./types";
-import { getOpenRouterSystemPrompt, CONCLUSION_PROMPT } from "./prompts";
+import { getOpenRouterSystemPrompt, CONCLUSION_PROMPT, buildContextBlock } from "./prompts";
 import { getCollaboratorLabel, getCollaboratorRole, CONCLUSION_MODEL } from "./models";
 
 // ── OpenRouter Client ─────────────────────────────────────────────────────────
@@ -23,22 +23,32 @@ function getClient(): OpenAI {
 }
 
 // ── Message Builder (sequential debate) ───────────────────────────────────────
-// Full conversation as alternating user/assistant. Current agent's own messages
-// are "assistant", everything else (user proposal + other agents) are "user".
+// Old messages compressed to summary; only last RECENT_KEEP passed verbatim.
+const RECENT_KEEP = 4;
 
 function buildMessages(
   history: DebateMessage[],
   currentAgentId: string,
-  mode: DebateMode
+  mode: DebateMode,
+  round = 1
 ): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
   const role = getCollaboratorRole(currentAgentId);
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-    { role: "system", content: getOpenRouterSystemPrompt(mode, role) },
+    { role: "system", content: getOpenRouterSystemPrompt(mode, role, round) },
   ];
 
+  // Inject compressed context block for older history
+  const contextBlock = buildContextBlock(history, getCollaboratorLabel);
+  if (contextBlock) {
+    messages.push({ role: "user", content: contextBlock });
+    messages.push({ role: "assistant", content: "Entendido. He revisado el debate previo." });
+  }
+
+  // Only pass the most recent messages verbatim
+  const recent = history.slice(-RECENT_KEEP);
   let lastRole: "user" | "assistant" | null = null;
 
-  for (const msg of history) {
+  for (const msg of recent) {
     if (msg.agent === "user") {
       if (lastRole === "user") {
         messages[messages.length - 1] = {
@@ -50,11 +60,9 @@ function buildMessages(
         lastRole = "user";
       }
     } else if (msg.agent === currentAgentId) {
-      // My own response → assistant
       messages.push({ role: "assistant", content: msg.content });
       lastRole = "assistant";
     } else {
-      // Another agent → user (labeled)
       const label = getCollaboratorLabel(msg.agent);
       const text = `[${label}]: ${msg.content}`;
       if (lastRole === "user") {
@@ -164,10 +172,11 @@ export async function* streamOpenRouterResponse(
   model: string,
   currentAgentId: string,
   mode: DebateMode,
-  maxTokens: number
+  maxTokens: number,
+  round = 1
 ): AsyncGenerator<string, void, unknown> {
-  const messages = buildMessages(history, currentAgentId, mode);
-  yield* streamFromModel(model, messages, maxTokens, 0.6);
+  const messages = buildMessages(history, currentAgentId, mode, round);
+  yield* streamFromModel(model, messages, maxTokens, 0.7);
 }
 
 export async function* streamConclusion(
