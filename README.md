@@ -22,27 +22,6 @@ A real-time debate platform where **16 AI agents with distinct roles** argue, ch
 - **Debate modes**: Conservative · Balanced · Aggressive
 - **Conclusion synthesis** — stop at any time to generate a structured JSON conclusion
 
----
-
-## 📸 Screenshots
-
-### Proposal Form
-![Proposal Form](docs/screenshots/01-proposal-form.png)
-*Enter your proposal and configure debate mode*
-
-### Active Debate
-![Active Debate](docs/screenshots/02-active-debate.png)
-*16 agents debating sequentially with real-time streaming*
-
-### Pause & Comment
-![Pause & Comment](docs/screenshots/03-pause-comment.png)
-*Pause the debate to inject your own feedback*
-
-### Final Conclusion
-![Final Conclusion](docs/screenshots/04-conclusion.png)
-*Structured synthesis with risk assessment and next steps*
-
----
 
 ## 🤖 The 16 Roles
 
@@ -226,6 +205,28 @@ Key settings in `src/lib/config.ts`:
 
 ---
 
+## 📸 Screenshots
+
+### Proposal Form
+![Proposal Form](docs/screenshots/01-proposal-form.png)
+*Enter your proposal and configure debate mode*
+
+### Active Debate
+![Active Debate](docs/screenshots/02-active-debate.png)
+*16 agents debating sequentially with real-time streaming*
+
+### Pause & Comment
+![Pause & Comment](docs/screenshots/03-pause-comment.png)
+*Pause the debate to inject your own feedback*
+
+### Final Conclusion
+![Final Conclusion](docs/screenshots/04-conclusion.png)
+*Structured synthesis with risk assessment and next steps*
+
+---
+
 ## 📄 License
 
 MIT
+
+
