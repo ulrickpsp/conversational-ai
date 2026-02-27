@@ -38,7 +38,7 @@ export default function Home() {
               🗣️ Multi-Agent Debate
             </h1>
             <p className="text-xs text-zinc-500 mt-0.5">
-              16 agentes debaten secuencialmente — preguntas, críticas y rebates
+              16 agents debate sequentially — questions, critiques, and rebuttals
             </p>
           </div>
           {hasStarted && (
@@ -48,7 +48,7 @@ export default function Home() {
                   onClick={stop}
                   className="px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-colors text-xs font-medium"
                 >
-                  ⏹ Detener y concluir
+                  ⏹ Stop & Conclude
                 </button>
               )}
               <button
@@ -56,7 +56,7 @@ export default function Home() {
                 disabled={isRunning || isConcluding}
                 className="px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-zinc-300 hover:border-zinc-600 transition-colors text-xs font-medium disabled:opacity-40"
               >
-                🔄 Nueva sesión
+                🔄 New Session
               </button>
             </div>
           )}

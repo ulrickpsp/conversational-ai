@@ -10,39 +10,85 @@ A real-time debate platform where **16 AI agents with distinct roles** argue, ch
 
 ## ✨ Features
 
-- **16 unique agents** debating one at a time in sequential round-robin
-- **Role-based prompts** — each agent has a distinct perspective (Critic, Architect, Economist, Skeptic, Provocateur…) to eliminate repetition
+- **16 unique roles** debating in sequential order with **resilient model fallback**
+- **Dynamic role-model rotation** — if a model fails (rate limit, 404, API error), the role automatically tries the next available model
+- **Role-based prompts** — each role has a distinct perspective (Critic, Architect, Economist, Skeptic, Provocateur…) to eliminate repetition
 - **Real-time streaming** via Server-Sent Events (SSE)
 - **Perplexity integration** with live web search for up-to-date facts
 - **Pause & resume** mid-debate: inject your own comments and have agents pick up with that context
 - **Scroll freely** while agents write — auto-scroll only kicks in when you're at the bottom
 - **Persistent state** — F5 / page refresh restores the full conversation from localStorage
-- **Error resilience** — agents that fail (rate limit, 404) are silently skipped
+- **Error resilience** — agents that fail (rate limit, 404) are silently retried with alternative models
 - **Debate modes**: Conservative · Balanced · Aggressive
 - **Conclusion synthesis** — stop at any time to generate a structured JSON conclusion
 
 ---
 
-## 🤖 The 16 Agents
+## 📸 Screenshots
 
-| # | Agent | Model | Role |
-|---|-------|-------|------|
-| 1 | 🌐 Perplexity | `sonar-reasoning-pro` | **Researcher** — real-time web data |
-| 2 | 🧠 Qwen3 235B | `qwen3-235b-a22b-thinking-2507` | **Critic** — devil's advocate |
-| 3 | 💚 GPT-OSS 120B | `gpt-oss-120b:free` | **Architect** — system design |
-| 4 | 🦙 Llama 70B | `llama-3.3-70b-instruct:free` | **Risk Manager** — what can go wrong |
-| 5 | 💠 Gemma 27B | `gemma-3-27b-it:free` | **Economist** — financial viability |
-| 6 | 👁️ Qwen3 VL 235B | `qwen3-vl-235b-a22b-thinking` | **Visionary** — disruptive ideas |
-| 7 | 🟢 Nemotron 30B | `nemotron-3-nano-30b-a3b:free` | **Engineer** — concrete implementation |
-| 8 | 🔸 Trinity Mini | `trinity-mini:free` | **Simplifier** — cut through noise |
-| 9 | 🖼️ Nemotron 12B | `nemotron-nano-12b-v2-vl:free` | **Validator** — detect contradictions |
-| 10 | 🚀 Step 3.5 | `step-3.5-flash:free` | **Strategist** — macro vision |
-| 11 | 🏮 GLM 4.5 | `glm-4.5-air:free` | **Historian** — precedents & cases |
-| 12 | ☀️ Solar Pro 3 | `solar-pro-3:free` | **Optimizer** — efficiency & cuts |
-| 13 | ⚡ Nemotron 9B | `nemotron-nano-9b-v2:free` | **Skeptic** — demands proof |
-| 14 | 💙 GPT-OSS 20B | `gpt-oss-20b:free` | **Pragmatist** — what actually works |
-| 15 | 🔺 Trinity Large | `trinity-large-preview:free` | **Integrator** — synthesizes views |
-| 16 | 💧 Liquid 1.2B | `lfm-2.5-1.2b-thinking:free` | **Provocateur** — uncomfortable questions |
+### Proposal Form
+![Proposal Form](docs/screenshots/01-proposal-form.png)
+*Enter your proposal and configure debate mode*
+
+### Active Debate
+![Active Debate](docs/screenshots/02-active-debate.png)
+*16 agents debating sequentially with real-time streaming*
+
+### Pause & Comment
+![Pause & Comment](docs/screenshots/03-pause-comment.png)
+*Pause the debate to inject your own feedback*
+
+### Final Conclusion
+![Final Conclusion](docs/screenshots/04-conclusion.png)
+*Structured synthesis with risk assessment and next steps*
+
+---
+
+## 🤖 The 16 Roles
+
+The debate iterates through **16 specialized roles** in order. Each role can use any of the 16 available models, and if a model fails, the system automatically tries the next available model.
+
+| # | Role | Icon | Purpose |
+|---|------|------|---------|
+| 1 | **Researcher** | 🌐 | Real-time web data, verifiable facts |
+| 2 | **Critic** | 🧠 | Devil's advocate, find flaws |
+| 3 | **Architect** | 💚 | System design, technical implementation |
+| 4 | **Risk Manager** | 🦙 | Identify what can go wrong |
+| 5 | **Economist** | 💠 | Financial viability, cost analysis |
+| 6 | **Visionary** | 👁️ | Disruptive ideas, think differently |
+| 7 | **Engineer** | 🟢 | Concrete implementation details |
+| 8 | **Simplifier** | 🔸 | Cut through noise, clarify |
+| 9 | **Validator** | 🖼️ | Detect contradictions, verify consistency |
+| 10 | **Strategist** | 🚀 | Macro vision, long-term planning |
+| 11 | **Historian** | 🏮 | Precedents, similar cases |
+| 12 | **Optimizer** | ☀️ | Efficiency, continuous improvement |
+| 13 | **Skeptic** | ⚡ | Demand proof, question everything |
+| 14 | **Pragmatist** | 💙 | What actually works in practice |
+| 15 | **Integrator** | 🔺 | Synthesize perspectives, seek consensus |
+| 16 | **Provocateur** | 💧 | Uncomfortable questions, break assumptions |
+
+### 🔄 Resilient Model Pool
+
+**16 models** rotate across roles. If one fails, the system tries the next:
+
+| Model | Provider | Size | Type |
+|-------|----------|------|------|
+| Perplexity Sonar Reasoning Pro | Perplexity | N/A | Web Search |
+| Qwen3 235B Thinking | Qwen | 235B | Free |
+| Llama 3.3 70B Instruct | Meta | 70B | Free |
+| Gemma 3 27B | Google | 27B | Free |
+| Qwen3 VL 235B Thinking | Qwen | 235B | Free |
+| Nemotron 3 Nano 30B | NVIDIA | 30B | Free |
+| Trinity Mini | Arcee | 26B | Free |
+| Nemotron Nano 12B VL | NVIDIA | 12B | Free |
+| Step 3.5 Flash | StepFun | N/A | Free |
+| GLM 4.5 Air | Z.ai | N/A | Free |
+| Solar Pro 3 | Upstage | N/A | Free |
+| Nemotron Nano 9B V2 | NVIDIA | 9B | Free |
+| GPT-OSS 20B | OpenAI | 20B | Free |
+| GPT-OSS 120B | OpenAI | 120B | Free |
+| Trinity Large Preview | Arcee | N/A | Free |
+| LFM 2.5 1.2B Thinking | Liquid | 1.2B | Free |
 
 ---
 
@@ -66,8 +112,8 @@ src/
 ├── hooks/
 │   └── useDebateStream.ts    # SSE client + localStorage persistence
 └── lib/
-    ├── models.ts             # Agent definitions + roles
-    ├── orchestrator.ts       # Sequential round-robin engine
+    ├── models.ts             # Roles, models, and rotation logic
+    ├── orchestrator.ts       # Resilient role-model orchestrator
     ├── prompts.ts            # Role-specific system prompts
     ├── perplexity.ts         # Perplexity API client
     ├── openrouter.ts         # OpenRouter API client
@@ -75,13 +121,24 @@ src/
     └── types.ts              # Shared TypeScript types
 ```
 
-**Flow:**
+**Resilient Debate Flow:**
 1. User submits a proposal
 2. Server opens an SSE stream
-3. Orchestrator iterates agents round-robin, calling each API sequentially
-4. Tokens stream back to the client in real time
-5. Each agent sees the full conversation history and responds from its role
-6. User can pause, inject a comment, and resume — agents continue with that context
+3. Orchestrator iterates through **16 roles** sequentially
+4. For each role:
+   - Try models in rotation (starting from last successful model)
+   - If a model fails (404, rate limit, API error), try the next model
+   - If all models fail for a role, skip that turn
+   - If a model succeeds, rotate to the next model for that role
+5. Tokens stream back to the client in real time
+6. Each agent sees the full conversation history compressed (last 4 messages verbatim, older ones summarized)
+7. User can pause, inject a comment, and resume — agents continue with that context
+
+**Why this works:**
+- **No single point of failure** — if one model is down, others compensate
+- **Fair distribution** — models rotate, so no model is overused
+- **Zero downtime** — debates continue even during API outages
+- **Cost optimization** — falls back to smaller/cheaper models when large ones fail
 
 ---
 

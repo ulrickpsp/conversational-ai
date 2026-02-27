@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import { config } from "./config";
 import { DebateMessage } from "./types";
 import { PERPLEXITY_SYSTEM_PROMPT, buildContextBlock } from "./prompts";
-import { getCollaboratorLabel } from "./models";
+import { getModelLabel, getRoleName, getRoleIcon } from "./models";
 
 // ── Perplexity Direct Client (OpenAI-compatible API) ──────────────────────────
 
@@ -18,6 +18,25 @@ function getClient(): OpenAI {
   return _client;
 }
 
+// ── Helper: Format agent label ────────────────────────────────────────────────
+
+function formatAgentLabel(agentId: string): string {
+  if (agentId === "user") return "User";
+  
+  const parts = agentId.split(":");
+  if (parts.length === 2) {
+    const role = parts[0];
+    const modelId = parts[1];
+    const roleIcon = getRoleIcon(role as any);
+    const roleName = getRoleName(role as any);
+    const modelLabel = getModelLabel(modelId);
+    return `${roleIcon} ${roleName} (${modelLabel})`;
+  }
+  
+  // Fallback for legacy format
+  return getModelLabel(agentId);
+}
+
 // ── Message Builder (sequential debate) ───────────────────────────────────────
 // Old messages compressed to summary; only last 4 passed verbatim.
 const RECENT_KEEP = 4;
@@ -30,10 +49,10 @@ function buildMessages(
   ];
 
   // Inject compressed summary for older messages
-  const contextBlock = buildContextBlock(history, getCollaboratorLabel);
+  const contextBlock = buildContextBlock(history, formatAgentLabel);
   if (contextBlock) {
     messages.push({ role: "user", content: contextBlock });
-    messages.push({ role: "assistant", content: "Entendido. He revisado el debate previo." });
+    messages.push({ role: "assistant", content: "Understood. I've reviewed the previous debate." });
   }
 
   const recent = history.slice(-RECENT_KEEP);
@@ -50,11 +69,12 @@ function buildMessages(
         messages.push({ role: "user", content: msg.content });
         lastRole = "user";
       }
-    } else if (msg.agent === "perplexity") {
+    } else if (msg.agent.includes("perplexity")) {
+      // Handle both "perplexity" and "researcher:perplexity" formats
       messages.push({ role: "assistant", content: msg.content });
       lastRole = "assistant";
     } else {
-      const label = getCollaboratorLabel(msg.agent);
+      const label = formatAgentLabel(msg.agent);
       const text = `[${label}]: ${msg.content}`;
       if (lastRole === "user") {
         messages[messages.length - 1] = {

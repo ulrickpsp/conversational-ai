@@ -2,7 +2,45 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ChatMessage } from "@/hooks/useDebateStream";
-import { getCollaborator, getCollaboratorLabel, getCollaboratorColor } from "@/lib/models";
+import { 
+  getModelLabel, 
+  getModelColor, 
+  getRoleIcon, 
+  getRoleName,
+  type AgentRole 
+} from "@/lib/models";
+
+// ── Helper: Parse agent ID ────────────────────────────────────────────────────
+
+function parseAgentId(agentId: string): { role: AgentRole; modelId: string } | null {
+  const parts = agentId.split(":");
+  if (parts.length === 2) {
+    return { role: parts[0] as AgentRole, modelId: parts[1] };
+  }
+  return null;
+}
+
+function getAgentIcon(agentId: string): string {
+  const parsed = parseAgentId(agentId);
+  if (parsed) return getRoleIcon(parsed.role);
+  return "🤖";
+}
+
+function getAgentLabel(agentId: string): string {
+  const parsed = parseAgentId(agentId);
+  if (parsed) {
+    const roleName = getRoleName(parsed.role);
+    const modelLabel = getModelLabel(parsed.modelId);
+    return `${roleName} (${modelLabel})`;
+  }
+  return agentId;
+}
+
+function getAgentColor(agentId: string): string {
+  const parsed = parseAgentId(agentId);
+  if (parsed) return getModelColor(parsed.modelId);
+  return "#94A3B8";
+}
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -129,10 +167,9 @@ function AgentBubble({
   }
 
   // Regular agent message
-  const collab = getCollaborator(message.agent);
-  const label = getCollaboratorLabel(message.agent);
-  const color = getCollaboratorColor(message.agent);
-  const icon = collab?.icon ?? "🤖";
+  const icon = getAgentIcon(message.agent);
+  const label = getAgentLabel(message.agent);
+  const color = getAgentColor(message.agent);
 
   return (
     <div className="group">

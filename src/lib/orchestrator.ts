@@ -3,7 +3,15 @@ import { DebateSession, DebateMessage, SSEEvent, DebateMode } from "./types";
 import { config } from "./config";
 import { streamPerplexityResponse } from "./perplexity";
 import { streamOpenRouterResponse } from "./openrouter";
-import { COLLABORATORS } from "./models";
+import { 
+  ROLES, 
+  MODELS, 
+  AgentRole, 
+  getRoleIcon, 
+  getRoleName, 
+  getModelLabel,
+  type Model 
+} from "./models";
 
 // ── SSE Encoder ───────────────────────────────────────────────────────────────
 
@@ -31,9 +39,11 @@ function createMessage(
   };
 }
 
-// ── Sequential Round-Robin Orchestrator ───────────────────────────────────────
-// 16 agents debate one at a time. Each sees the full conversation history
-// and responds to the previous speaker. Infinite rounds.
+// ── Sequential Round-Robin Orchestrator with Resilient Model Rotation ────────
+// 16 ROLES iterate in order. Each role tries MODELS in rotation until success.
+// If a model fails (API error, rate limit, 404), the role tries the next model.
+// If all models fail for a role, that turn is skipped. This ensures debates
+// continue even when specific models are unavailable.
 
 export async function* orchestrateDebate(
   proposal: string,
@@ -63,11 +73,16 @@ export async function* orchestrateDebate(
     session.messages.push(createMessage(session, 0, "user", "user", proposal));
   }
 
-  const totalAgents = COLLABORATORS.length;
+  const totalRoles = ROLES.length;
+  const totalModels = MODELS.length;
   const startTurnIndex = previousMessages ? previousMessages.filter(m => m.agent !== "user").length : 0;
   
+  // Track last successful model index for each role (for even distribution)
+  const roleModelIndices = new Map<AgentRole, number>();
+  ROLES.forEach((role, i) => roleModelIndices.set(role, i % totalModels));
+  
   console.log(
-    `[Debate ${session.sessionId}] ${previousMessages ? 'Resumed' : 'Started'} — mode: ${mode}, ${totalAgents} agents, turn ${startTurnIndex}`
+    `[Debate ${session.sessionId}] ${previousMessages ? 'Resumed' : 'Started'} — mode: ${mode}, ${totalRoles} roles, ${totalModels} models, turn ${startTurnIndex}`
   );
 
   try {
@@ -76,77 +91,124 @@ export async function* orchestrateDebate(
     while (true) {
       if (signal?.aborted) break;
 
-      // Current agent (round-robin)
-      const collab = COLLABORATORS[turnIndex % totalAgents];
-      const round = Math.floor(turnIndex / totalAgents) + 1;
+      // Current role (round-robin through ROLES)
+      const role = ROLES[turnIndex % totalRoles];
+      const round = Math.floor(turnIndex / totalRoles) + 1;
 
       // Emit round_start at the beginning of each full cycle
-      if (turnIndex % totalAgents === 0) {
+      if (turnIndex % totalRoles === 0) {
         yield encodeSSE({ type: "round_start", round });
       }
 
-      const agentId = collab.id;
-      yield encodeSSE({ type: "message_start", agent: agentId, round });
+      // Try models in rotation until one succeeds
+      const startModelIndex = roleModelIndices.get(role) ?? 0;
+      let modelAttempts = 0;
+      let success = false;
 
-      let content = "";
-      try {
-        const gen =
-          collab.type === "perplexity"
-            ? streamPerplexityResponse(
-                session.messages,
-                config.debate.maxTokensPerplexity
-              )
-            : streamOpenRouterResponse(
-                session.messages,
-                collab.id,
-                collab.id,
-                mode,
-                config.debate.maxTokensOpenRouter,
-                round
-              );
-
-        for await (const chunk of gen) {
-          if (signal?.aborted) break;
-          content += chunk;
-          yield encodeSSE({ type: "token", agent: agentId, round, data: chunk });
-        }
-
-        if (content.length > 0 && !signal?.aborted) {
-          session.messages.push(
-            createMessage(session, round, agentId, "assistant", content)
-          );
-          yield encodeSSE({ type: "message_end", agent: agentId, round });
-          console.log(
-            `[Debate ${session.sessionId}] R${round} ${collab.shortLabel} ✓ (${content.length} chars)`
-          );
-        } else if (!signal?.aborted) {
-          yield encodeSSE({
-            type: "agent_error",
-            agent: agentId,
-            data: `${collab.shortLabel} no generó respuesta.`,
-          });
-          yield encodeSSE({ type: "message_end", agent: agentId, round });
-        }
-      } catch (err) {
+      while (modelAttempts < totalModels && !success) {
         if (signal?.aborted) break;
-        const errMsg = err instanceof Error ? err.message : "Error desconocido";
-        console.error(
-          `[Debate ${session.sessionId}] R${round} ${collab.shortLabel} ✗:`,
-          errMsg
-        );
-        yield encodeSSE({
-          type: "agent_error",
-          agent: agentId,
-          data: `Error en ${collab.shortLabel}: ${errMsg}`,
-        });
-        yield encodeSSE({ type: "message_end", agent: agentId, round });
+
+        const modelIndex = (startModelIndex + modelAttempts) % totalModels;
+        const model = MODELS[modelIndex];
+        
+        // Create a unique agent ID combining role and model for message tracking
+        const agentId = `${role}:${model.id}`;
+        
+        const roleIcon = getRoleIcon(role);
+        const roleName = getRoleName(role);
+        const modelLabel = getModelLabel(model.id);
+        const displayLabel = `${roleIcon} ${roleName} (${modelLabel})`;
+
+        yield encodeSSE({ type: "message_start", agent: agentId, round });
+
+        let content = "";
+        try {
+          const gen =
+            model.type === "perplexity"
+              ? streamPerplexityResponse(
+                  session.messages,
+                  config.debate.maxTokensPerplexity
+                )
+              : streamOpenRouterResponse(
+                  session.messages,
+                  model.id,
+                  agentId,
+                  mode,
+                  config.debate.maxTokensOpenRouter,
+                  round
+                );
+
+          for await (const chunk of gen) {
+            if (signal?.aborted) break;
+            content += chunk;
+            yield encodeSSE({ type: "token", agent: agentId, round, data: chunk });
+          }
+
+          if (content.length > 0 && !signal?.aborted) {
+            session.messages.push(
+              createMessage(session, round, agentId, "assistant", content)
+            );
+            yield encodeSSE({ type: "message_end", agent: agentId, round });
+            
+            // Success! Update model index for this role and move to next role
+            roleModelIndices.set(role, (modelIndex + 1) % totalModels);
+            success = true;
+            
+            console.log(
+              `[Debate ${session.sessionId}] R${round} ${displayLabel} ✓ (${content.length} chars)`
+            );
+          } else if (!signal?.aborted) {
+            // Empty response - try next model
+            yield encodeSSE({
+              type: "agent_error",
+              agent: agentId,
+              data: `${displayLabel} returned empty response. Trying next model...`,
+            });
+            yield encodeSSE({ type: "message_end", agent: agentId, round });
+            console.warn(
+              `[Debate ${session.sessionId}] R${round} ${displayLabel} empty response, trying next model`
+            );
+            modelAttempts++;
+          }
+        } catch (err) {
+          if (signal?.aborted) break;
+          
+          const errMsg = err instanceof Error ? err.message : "Unknown error";
+          console.error(
+            `[Debate ${session.sessionId}] R${round} ${displayLabel} ✗:`,
+            errMsg
+          );
+          
+          // Try next model unless this was the last one
+          if (modelAttempts < totalModels - 1) {
+            yield encodeSSE({
+              type: "agent_error",
+              agent: agentId,
+              data: `${displayLabel} failed: ${errMsg.slice(0, 100)}. Trying next model...`,
+            });
+            yield encodeSSE({ type: "message_end", agent: agentId, round });
+            modelAttempts++;
+          } else {
+            // All models failed for this role
+            yield encodeSSE({
+              type: "agent_error",
+              agent: agentId,
+              data: `All models failed for ${roleName}. Skipping turn.`,
+            });
+            yield encodeSSE({ type: "message_end", agent: agentId, round });
+            console.error(
+              `[Debate ${session.sessionId}] R${round} ${roleName} — all ${totalModels} models failed`
+            );
+            break;
+          }
+        }
       }
 
       // Emit round_end at the end of each full cycle
-      if ((turnIndex + 1) % totalAgents === 0) {
+      if ((turnIndex + 1) % totalRoles === 0) {
         yield encodeSSE({ type: "round_end", round });
         console.log(
-          `[Debate ${session.sessionId}] Round ${round} complete — all ${totalAgents} agents spoke`
+          `[Debate ${session.sessionId}] Round ${round} complete — ${totalRoles} roles attempted`
         );
       }
 
@@ -159,7 +221,7 @@ export async function* orchestrateDebate(
   } catch (err) {
     if (!signal?.aborted) {
       console.error(`[Debate ${session.sessionId}] Error:`, err);
-      yield encodeSSE({ type: "error", data: "Error inesperado en el debate." });
+      yield encodeSSE({ type: "error", data: "Unexpected error in debate." });
     }
   }
 

@@ -12,18 +12,18 @@ interface ProposalFormProps {
 const modeOptions: { value: DebateMode; label: string; description: string }[] = [
   {
     value: "conservative",
-    label: "🛡️ Conservador",
-    description: "Prioriza seguridad y enfoques probados",
+    label: "🛡️ Conservative",
+    description: "Prioritizes safety and proven approaches",
   },
   {
     value: "balanced",
-    label: "⚖️ Equilibrado",
-    description: "Balance entre riesgo y recompensa",
+    label: "⚖️ Balanced",
+    description: "Balance between risk and reward",
   },
   {
     value: "aggressive",
-    label: "🔥 Agresivo",
-    description: "Maximiza retornos, acepta más riesgo",
+    label: "🔥 Aggressive",
+    description: "Maximizes returns, accepts more risk",
   },
 ];
 
@@ -45,7 +45,7 @@ export function ProposalForm({ onSubmit, disabled }: ProposalFormProps) {
       {/* Proposal Input */}
       <div>
         <label htmlFor="proposal" className="block text-sm font-medium text-zinc-400 mb-1.5">
-          Tu propuesta
+          Your Proposal
         </label>
         <textarea
           id="proposal"
@@ -54,7 +54,7 @@ export function ProposalForm({ onSubmit, disabled }: ProposalFormProps) {
           disabled={disabled}
           rows={3}
           maxLength={4000}
-          placeholder="Ej: Quiero una estrategia de arbitraje triangular entre DEX y CEX, maximizando profit con riesgo controlado…"
+          placeholder="E.g.: I want a triangular arbitrage strategy between DEX and CEX, maximizing profit with controlled risk…"
           className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
         />
         <div className="text-xs text-zinc-600 mt-1 text-right">
@@ -66,15 +66,15 @@ export function ProposalForm({ onSubmit, disabled }: ProposalFormProps) {
       <div className="flex items-center gap-2 px-3 py-2 bg-zinc-900/50 border border-zinc-800 rounded-lg">
         <span className="text-sm">🗣️</span>
         <span className="text-xs text-zinc-400">
-          <strong className="text-zinc-300">{COLLABORATORS.length} agentes</strong>{" "}
-          debatirán secuencialmente — críticas y rebates
+          <strong className="text-zinc-300">{COLLABORATORS.length} agents</strong>{" "}
+          will debate sequentially — critiques and rebuttals
         </span>
         <button
           type="button"
           onClick={() => setShowAgents(!showAgents)}
           className="ml-auto text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors"
         >
-          {showAgents ? "ocultar" : "ver agentes"}
+          {showAgents ? "hide" : "view agents"}
         </button>
       </div>
 
@@ -100,7 +100,7 @@ export function ProposalForm({ onSubmit, disabled }: ProposalFormProps) {
         onClick={() => setShowAdvanced(!showAdvanced)}
         className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
       >
-        {showAdvanced ? "▾ Ocultar opciones" : "▸ Opciones avanzadas"}
+        {showAdvanced ? "▾ Hide options" : "▸ Advanced options"}
       </button>
 
       {showAdvanced && (
@@ -108,7 +108,7 @@ export function ProposalForm({ onSubmit, disabled }: ProposalFormProps) {
           {/* Mode Selection */}
           <div>
             <label className="block text-sm font-medium text-zinc-400 mb-2">
-              Enfoque de la colaboración
+              Debate Approach
             </label>
             <div className="grid grid-cols-3 gap-2">
               {modeOptions.map((opt) => (
@@ -138,7 +138,7 @@ export function ProposalForm({ onSubmit, disabled }: ProposalFormProps) {
         disabled={disabled || !proposal.trim()}
         className="w-full py-3 px-4 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:from-blue-600 disabled:hover:to-purple-600"
       >
-        {disabled ? "Debate en curso…" : "🗣️ Iniciar Debate Multi-Agente"}
+        {disabled ? "Debate in progress…" : "🗣️ Start Multi-Agent Debate"}
       </button>
     </form>
   );

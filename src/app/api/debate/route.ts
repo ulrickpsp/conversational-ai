@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   // Validate proposal
   if (!proposal || typeof proposal !== "string" || proposal.trim().length === 0) {
     return new Response(
-      JSON.stringify({ error: "La propuesta no puede estar vacía." }),
+      JSON.stringify({ error: "Proposal cannot be empty." }),
       { status: 400, headers: { "Content-Type": "application/json" } }
     );
   }
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
   if (proposal.length > config.debate.maxProposalLength) {
     return new Response(
       JSON.stringify({
-        error: `La propuesta excede el máximo de ${config.debate.maxProposalLength} caracteres.`,
+        error: `Proposal exceeds maximum of ${config.debate.maxProposalLength} characters.`,
       }),
       { status: 400, headers: { "Content-Type": "application/json" } }
     );
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
   if (!config.perplexity.apiKey) {
     return new Response(
       JSON.stringify({
-        error: "Falta la clave de Perplexity. Configura PERPLEXITY_API_KEY.",
+        error: "Missing Perplexity key. Configure PERPLEXITY_API_KEY.",
       }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
   if (!config.openrouter.apiKey) {
     return new Response(
       JSON.stringify({
-        error: "Falta la clave de OpenRouter. Configura OPENROUTER_API_KEY.",
+        error: "Missing OpenRouter key. Configure OPENROUTER_API_KEY.",
       }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );

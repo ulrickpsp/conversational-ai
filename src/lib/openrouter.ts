@@ -2,7 +2,13 @@ import OpenAI from "openai";
 import { config } from "./config";
 import { DebateMessage, DebateMode } from "./types";
 import { getOpenRouterSystemPrompt, CONCLUSION_PROMPT, buildContextBlock } from "./prompts";
-import { getCollaboratorLabel, getCollaboratorRole, CONCLUSION_MODEL } from "./models";
+import { 
+  getModelLabel, 
+  getRoleName,
+  getRoleIcon,
+  CONCLUSION_MODEL,
+  type AgentRole 
+} from "./models";
 
 // ── OpenRouter Client ─────────────────────────────────────────────────────────
 
@@ -22,6 +28,28 @@ function getClient(): OpenAI {
   return _client;
 }
 
+// ── Helper: Parse agent ID ────────────────────────────────────────────────────
+// Agent IDs are now in format "role:modelId" (e.g., "researcher:perplexity")
+
+function parseAgentId(agentId: string): { role: AgentRole; modelId: string } {
+  const parts = agentId.split(":");
+  if (parts.length === 2) {
+    return { role: parts[0] as AgentRole, modelId: parts[1] };
+  }
+  // Fallback for legacy format (just modelId)
+  return { role: "critic", modelId: agentId };
+}
+
+function formatAgentLabel(agentId: string): string {
+  if (agentId === "user") return "User";
+  
+  const { role, modelId } = parseAgentId(agentId);
+  const roleIcon = getRoleIcon(role);
+  const roleName = getRoleName(role);
+  const modelLabel = getModelLabel(modelId);
+  return `${roleIcon} ${roleName} (${modelLabel})`;
+}
+
 // ── Message Builder (sequential debate) ───────────────────────────────────────
 // Old messages compressed to summary; only last RECENT_KEEP passed verbatim.
 const RECENT_KEEP = 4;
@@ -32,16 +60,16 @@ function buildMessages(
   mode: DebateMode,
   round = 1
 ): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
-  const role = getCollaboratorRole(currentAgentId);
+  const { role } = parseAgentId(currentAgentId);
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: "system", content: getOpenRouterSystemPrompt(mode, role, round) },
   ];
 
   // Inject compressed context block for older history
-  const contextBlock = buildContextBlock(history, getCollaboratorLabel);
+  const contextBlock = buildContextBlock(history, formatAgentLabel);
   if (contextBlock) {
     messages.push({ role: "user", content: contextBlock });
-    messages.push({ role: "assistant", content: "Entendido. He revisado el debate previo." });
+    messages.push({ role: "assistant", content: "Understood. I've reviewed the previous debate." });
   }
 
   // Only pass the most recent messages verbatim
@@ -63,7 +91,7 @@ function buildMessages(
       messages.push({ role: "assistant", content: msg.content });
       lastRole = "assistant";
     } else {
-      const label = getCollaboratorLabel(msg.agent);
+      const label = formatAgentLabel(msg.agent);
       const text = `[${label}]: ${msg.content}`;
       if (lastRole === "user") {
         messages[messages.length - 1] = {
@@ -93,9 +121,9 @@ function buildConclusionMessages(
   let context = "";
   for (const msg of history) {
     if (msg.agent === "user") {
-      context += `**Propuesta del usuario:**\n${msg.content}\n\n`;
+      context += `**User Proposal:**\n${msg.content}\n\n`;
     } else {
-      context += `**${getCollaboratorLabel(msg.agent)}:**\n${msg.content}\n\n`;
+      context += `**${formatAgentLabel(msg.agent)}:**\n${msg.content}\n\n`;
     }
   }
 

@@ -16,10 +16,10 @@ const severityColors: Record<RiskItem["severity"], string> = {
 };
 
 const severityLabels: Record<RiskItem["severity"], string> = {
-  low: "Bajo",
-  medium: "Medio",
-  high: "Alto",
-  critical: "Crítico",
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  critical: "Critical",
 };
 
 export function ConclusionPanel({ conclusion, onRefine, iteration }: ConclusionPanelProps) {
@@ -28,10 +28,10 @@ export function ConclusionPanel({ conclusion, onRefine, iteration }: ConclusionP
       <div className="flex items-center gap-3">
         <span className="text-2xl">📋</span>
         <h2 className="text-xl font-bold text-emerald-400">
-          Conclusión Final
+          Final Conclusion
           {iteration && iteration > 1 && (
             <span className="text-sm font-normal text-zinc-500 ml-2">
-              (Iteración {iteration})
+              (Iteration {iteration})
             </span>
           )}
         </h2>
@@ -40,20 +40,20 @@ export function ConclusionPanel({ conclusion, onRefine, iteration }: ConclusionP
             onClick={onRefine}
             className="ml-auto px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30 text-blue-400 hover:border-blue-500/50 hover:text-blue-300 transition-all text-sm font-medium"
           >
-            🔄 Refinar documento
+            🔄 Refine Document
           </button>
         )}
       </div>
 
       {/* Strategy Summary */}
-      <Section title="Estrategia" icon="🎯">
+      <Section title="Strategy" icon="🎯">
         <p className="text-zinc-300 text-sm leading-relaxed">
           {conclusion.strategySummary}
         </p>
       </Section>
 
       {/* Profitability Model */}
-      <Section title="Modelo de Rentabilidad" icon="💰">
+      <Section title="Profitability Model" icon="💰">
         <p className="text-zinc-300 text-sm leading-relaxed">
           {conclusion.profitabilityModel}
         </p>
@@ -61,7 +61,7 @@ export function ConclusionPanel({ conclusion, onRefine, iteration }: ConclusionP
 
       {/* Risk Assessment */}
       {conclusion.riskAssessment.length > 0 && (
-        <Section title="Evaluación de Riesgos" icon="⚠️">
+        <Section title="Risk Assessment" icon="⚠️">
           <div className="space-y-2">
             {conclusion.riskAssessment.map((risk, idx) => (
               <div
@@ -75,7 +75,7 @@ export function ConclusionPanel({ conclusion, onRefine, iteration }: ConclusionP
                   <span className="text-sm font-medium">{risk.risk}</span>
                 </div>
                 <p className="text-xs opacity-80 ml-1">
-                  Mitigación: {risk.mitigation}
+                  Mitigation: {risk.mitigation}
                 </p>
               </div>
             ))}
@@ -85,7 +85,7 @@ export function ConclusionPanel({ conclusion, onRefine, iteration }: ConclusionP
 
       {/* Constraints */}
       {conclusion.constraints.length > 0 && (
-        <Section title="Restricciones y Supuestos" icon="📐">
+        <Section title="Constraints & Assumptions" icon="📐">
           <ul className="list-disc list-inside space-y-1 text-sm text-zinc-300">
             {conclusion.constraints.map((c, idx) => (
               <li key={idx}>{c}</li>
@@ -96,7 +96,7 @@ export function ConclusionPanel({ conclusion, onRefine, iteration }: ConclusionP
 
       {/* Implementation Steps */}
       {conclusion.implementationSteps.length > 0 && (
-        <Section title="Pasos de Implementación" icon="🚀">
+        <Section title="Implementation Steps" icon="🚀">
           <ol className="list-decimal list-inside space-y-1 text-sm text-zinc-300">
             {conclusion.implementationSteps.map((step, idx) => (
               <li key={idx}>{step}</li>
@@ -107,7 +107,7 @@ export function ConclusionPanel({ conclusion, onRefine, iteration }: ConclusionP
 
       {/* Open Questions */}
       {conclusion.openQuestions.length > 0 && (
-        <Section title="Preguntas Abiertas" icon="❓">
+        <Section title="Open Questions" icon="❓">
           <ul className="list-disc list-inside space-y-1 text-sm text-zinc-300">
             {conclusion.openQuestions.map((q, idx) => (
               <li key={idx}>{q}</li>
